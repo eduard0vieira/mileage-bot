@@ -169,6 +169,51 @@ class SeatsAeroClient:
         except requests.exceptions.RequestException as e:
             raise ConnectionError(f"❌ Erro na requisição: {str(e)}")
     
+    @staticmethod
+    def _safe_int(value: Any, default: int = 0) -> int:
+        """
+        Converte um valor para inteiro de forma segura.
+        
+        A API Seats.aero pode retornar números como strings ("77000")
+        ou valores None. Este helper garante conversão segura.
+        
+        Args:
+            value: Valor a ser convertido (str, int, float, None)
+            default: Valor padrão se conversão falhar (default: 0)
+        
+        Returns:
+            int: Valor convertido ou default
+        
+        Examples:
+            >>> SeatsAeroClient._safe_int("77000")
+            77000
+            >>> SeatsAeroClient._safe_int(None)
+            0
+            >>> SeatsAeroClient._safe_int("invalid", default=4)
+            4
+        """
+        if value is None:
+            return default
+        
+        # Se já é int, retorna direto
+        if isinstance(value, int):
+            return value
+        
+        # Se é float, converte para int
+        if isinstance(value, float):
+            return int(value)
+        
+        # Se é string, tenta converter
+        if isinstance(value, str):
+            try:
+                # Remove espaços e tenta converter
+                return int(value.strip())
+            except (ValueError, AttributeError):
+                return default
+        
+        # Qualquer outro tipo, retorna default
+        return default
+    
     def search_availability(
         self,
         origin: str,
@@ -411,6 +456,178 @@ class SeatsAeroClient:
             if not dates:
                 continue
             
+    @staticmethod
+    def process_search_results(
+        results: List[Dict[str, Any]],
+        max_staleness_hours: int = 48,
+        direct_only: bool = False,
+        airline_filter: Optional[str] = None,
+        program_filter: Optional[str] = None,
+        requested_cabin: str = 'business'
+    ) -> List[FlightBatch]:
+        """
+        Processa e agrupa resultados da API Seats.aero.
+        
+        IMPORTANTE: A API Seats.aero usa CamelCase e estrutura específica.
+        Este método mapeia corretamente os campos para nosso modelo.
+        
+        Filtros aplicados (LOCALMENTE):
+        - max_staleness_hours: Descarta voos vistos há mais tempo
+        - direct_only: Descarta voos com conexão
+        - airline_filter: Filtra por companhia específica
+        - program_filter: Filtra por programa de milhas
+        
+        Args:
+            results: Lista de voos da API
+            max_staleness_hours: Máximo de horas desde última atualização
+            direct_only: Se True, só voos diretos
+            airline_filter: Nome da companhia (ex: "United")
+            program_filter: Nome do programa (ex: "Privilege Club")
+            requested_cabin: Classe solicitada ("economy", "business", "first")
+        
+        Returns:
+            Lista de FlightBatch agrupados e enriquecidos
+        """
+        if not results:
+            return []
+        
+        # DEBUG: Descomente para ver estrutura real da API
+        # if results:
+        #     print(f"\n🔍 DEBUG - Estrutura do primeiro resultado:")
+        #     print(f"Chaves disponíveis: {list(results[0].keys())}")
+        #     print(f"Amostra: {results[0]}")
+        #     print()
+        
+        # Mapeamento de cabines para campos de custo
+        cabin_cost_map = {
+            'economy': 'YMileageCost',
+            'business': 'JMileageCost',
+            'first': 'FMileageCost'
+        }
+        cost_field = cabin_cost_map.get(requested_cabin, 'JMileageCost')
+        
+        # Filtrar resultados
+        filtered_results = []
+        now = datetime.now()
+        
+        for flight in results:
+            # Filtro 1: Staleness (última vez visto)
+            last_seen_str = flight.get('LastSeen', flight.get('UpdatedAt', flight.get('CreatedAt', '')))
+            if last_seen_str and max_staleness_hours:
+                try:
+                    last_seen = datetime.fromisoformat(last_seen_str.replace('Z', '+00:00'))
+                    hours_ago = (now - last_seen).total_seconds() / 3600
+                    if hours_ago > max_staleness_hours:
+                        continue  # Descarta (muito antigo)
+                except:
+                    pass  # Se não conseguir parsear, mantém
+            
+            # Filtro 2: Direct only
+            if direct_only:
+                is_direct = flight.get('Direct', flight.get('NumStops', 1) == 0)
+                if not is_direct:
+                    continue  # Descarta (tem conexão)
+            
+            # Filtro 3: Airline (case insensitive substring match)
+            if airline_filter:
+                airline = flight.get('Airline', flight.get('MarketingCarrier', ''))
+                if airline_filter.lower() not in airline.lower():
+                    continue  # Descarta (companhia diferente)
+            
+            # Filtro 4: Program (case insensitive substring match)
+            if program_filter:
+                source = flight.get('Source', '').lower()
+                program_name = PROGRAM_MAPPING.get(source, source.title())
+                
+                filter_lower = program_filter.lower()
+                if (filter_lower not in program_name.lower() and 
+                    filter_lower not in source):
+                    continue  # Descarta (programa diferente)
+            
+            filtered_results.append(flight)
+        
+        if not filtered_results:
+            return []
+        
+        # Agrupar por (Origin, Destination, Airline, Source)
+        groups = defaultdict(list)
+        
+        for flight in filtered_results:
+            # Extrair aeroportos (tentar múltiplas estruturas)
+            origin = None
+            destination = None
+            
+            # Tentar estruturas comuns da API
+            if 'Route' in flight and isinstance(flight['Route'], dict):
+                origin = flight['Route'].get('OriginAirport', '').upper()
+                destination = flight['Route'].get('DestinationAirport', '').upper()
+            else:
+                origin = flight.get('OriginAirport', flight.get('Origin', '')).upper()
+                destination = flight.get('DestinationAirport', flight.get('Destination', '')).upper()
+            
+            airline = flight.get('Airline', flight.get('MarketingCarrier', ''))
+            source = flight.get('Source', '').lower()
+            
+            if not origin or not destination:
+                continue  # Skip se não conseguir extrair rota
+            
+            key = (origin, destination, airline, source)
+            groups[key].append(flight)
+        
+        # Criar FlightBatch para cada grupo
+        batches = []
+        
+        for (origin_code, dest_code, airline, source), flights in groups.items():
+            # Traduzir código do programa para nome legível
+            program = PROGRAM_MAPPING.get(source, source.title())
+            
+            dates = []
+            costs = []
+            
+            for flight in flights:
+                # Data (múltiplos campos possíveis)
+                date_str = flight.get('Date', flight.get('DepartureDate', flight.get('DepartDate', '')))
+                if not date_str:
+                    continue
+                
+                # Assentos disponíveis
+                seats = None
+                if 'RemainingSeats' in flight:
+                    seats = flight['RemainingSeats']
+                elif 'Availability' in flight and isinstance(flight['Availability'], dict):
+                    seats = flight['Availability'].get(requested_cabin.title(), None)
+                elif 'Seats' in flight:
+                    seats = flight['Seats']
+                
+                # Converter para int (pode vir como string da API)
+                seats = SeatsAeroClient._safe_int(seats, default=4)
+                
+                # Custo em milhas (baseado na classe solicitada)
+                # Prioridade:
+                # 1. Campos específicos por cabine (JMileageCost, YMileageCost, FMileageCost)
+                # 2. Campos genéricos (MilesCost, MileageCost, Miles, Cost)
+                miles_cost = flight.get(cost_field, None)
+                
+                # Fallback para campos genéricos (mock ou APIs antigas)
+                if miles_cost is None or miles_cost == 0:
+                    miles_cost = flight.get('MilesCost', 
+                                 flight.get('MileageCost', 
+                                 flight.get('Miles', 
+                                 flight.get('Cost', 0))))
+                
+                # Converter para int (API pode retornar string "77000")
+                miles_cost = SeatsAeroClient._safe_int(miles_cost, default=0)
+                
+                # Se AINDA é 0, pular (sem disponibilidade)
+                if miles_cost == 0:
+                    continue
+                
+                dates.append((date_str, seats))
+                costs.append(miles_cost)
+            
+            if not dates:
+                continue  # Skip se não tem datas válidas
+            
             # Calcular min e max cost
             min_cost = min(costs) if costs else None
             max_cost = max(costs) if costs else None
@@ -429,14 +646,14 @@ class SeatsAeroClient:
             else:
                 cost_str = "Consultar"
             
-            # Mapear cabin
+            # Mapear cabin para nome em português
             cabin_map = {
                 'economy': 'Econômica',
                 'premium_economy': 'Econômica Premium',
                 'business': 'Executiva',
                 'first': 'Primeira Classe'
             }
-            cabin_display = cabin_map.get(cabin_class, cabin_class.title())
+            cabin_display = cabin_map.get(requested_cabin, requested_cabin.title())
             
             # Nota com estatísticas
             notes_parts = [f"Encontrado via API Seats.aero"]
@@ -463,11 +680,16 @@ class SeatsAeroClient:
                 max_cost=max_cost
             )
             
-            # Enriquecer
+            # CRÍTICO: Enriquecer com dados de aeroportos
+            # Sem isso, origem/destino/bandeiras ficam vazios!
             try:
                 batch.enrich_airport_data()
-            except Exception:
-                pass
+            except Exception as e:
+                # Se falhar, pelo menos preenche com códigos
+                batch.origin = origin_code
+                batch.destination = dest_code
+                batch.origin_flag = "✈️"
+                batch.dest_flag = "✈️"
             
             batches.append(batch)
         

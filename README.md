@@ -240,6 +240,11 @@ pytest tests/ --cov=app      # Com cobertura
 - **[TESTING.md](TESTING.md)**: Guia completo de testes (pytest, cobertura, boas práticas)
 - **[ADVANCED_FEATURES.md](ADVANCED_FEATURES.md)**: Funcionalidades avançadas de filtros
 - **[VISUAL_FORMAT_UPDATE.md](VISUAL_FORMAT_UPDATE.md)**: Formatação visual estrita
+- **[API_FILTERS_FIX.md](API_FILTERS_FIX.md)**: Separação de filtros API vs. locais
+- **[API_MAPPING_FIX.md](API_MAPPING_FIX.md)**: Correção do mapeamento JSON → Objeto
+- **[TYPE_SAFETY_FIX.md](TYPE_SAFETY_FIX.md)**: Correção de TypeError (strings → int)
+- **[API_STRUCTURE_REFERENCE.md](API_STRUCTURE_REFERENCE.md)**: Referência rápida - estrutura da API Seats.aero
+- **[LOYALTY_PROGRAMS.md](LOYALTY_PROGRAMS.md)**: Guia completo de programas de fidelidade
 - **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)**: Referência rápida de comandos
 
 ## 🎓 Para Estudar

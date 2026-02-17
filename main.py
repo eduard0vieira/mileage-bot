@@ -94,7 +94,8 @@ def mode_api(console: Console, args):
             max_staleness_hours=args.max_staleness,
             direct_only=args.direct,
             airline_filter=args.airline,
-            program_filter=args.program
+            program_filter=args.program,
+            requested_cabin=args.cabin  # Importante: para extrair custo correto
         )
         
         if not batches:
