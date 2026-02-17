@@ -64,6 +64,76 @@ PROGRAM_MAPPING = {
 }
 
 
+# Mapeamento de SOURCE (programa) para AIRLINE (companhia provável)
+# Usado quando a API não retorna o campo 'Airline'
+SOURCE_TO_AIRLINE = {
+    # Programas com companhia única
+    'american': 'American Airlines',
+    'aa': 'American Airlines',
+    'aadvantage': 'American Airlines',
+    
+    'alaska': 'Alaska Airlines',
+    
+    'qatar': 'Qatar Airways',
+    'qr': 'Qatar Airways',
+    'privilege': 'Qatar Airways',
+    
+    'united': 'United Airlines',
+    
+    'delta': 'Delta Air Lines',
+    
+    'aeromexico': 'Aeromexico',
+    
+    'british': 'British Airways',
+    'ba': 'British Airways',
+    'club': 'British Airways',
+    
+    'iberia': 'Iberia',
+    
+    'tap': 'TAP Air Portugal',
+    
+    'azul': 'Azul',
+    'blue': 'Azul',
+    
+    'latam': 'LATAM Airlines',
+    
+    'gol': 'Gol',
+    
+    'lufthansa': 'Lufthansa',
+    
+    'turkish': 'Turkish Airlines',
+    
+    'sas': 'SAS Scandinavian Airlines',
+    'eurobonus': 'SAS Scandinavian Airlines',
+    
+    'air canada': 'Air Canada',
+    'aeroplan': 'Air Canada',
+    
+    'avianca': 'Avianca',
+    'lifemiles': 'Avianca',
+    
+    'virgin': 'Virgin Atlantic',
+    'flyingclub': 'Virgin Atlantic',
+    
+    'qantas': 'Qantas',
+    
+    'cathay': 'Cathay Pacific',
+    
+    'singapore': 'Singapore Airlines',
+    
+    'ana': 'ANA',
+    
+    'jal': 'Japan Airlines',
+    
+    'korean': 'Korean Air',
+    
+    'flyingblue': 'Air France / KLM',
+    
+    # Smiles é multi-companhia (Gol + Parceiros)
+    'smiles': 'Gol / Parceiros Smiles',
+}
+
+
 class SeatsAeroClient:
     """
     Client for Seats.aero Partner API.
@@ -530,8 +600,36 @@ class SeatsAeroClient:
             
             # Filtro 3: Airline (case insensitive substring match)
             if airline_filter:
-                airline = flight.get('Airline', flight.get('MarketingCarrier', ''))
-                if airline_filter.lower() not in airline.lower():
+                # Busca robusta de airline (mesma lógica do agrupamento)
+                airline = None
+                
+                # Prioridade 1: Campo direto 'Airline'
+                if 'Airline' in flight and flight['Airline']:
+                    airline = flight['Airline']
+                
+                # Prioridade 2: Route.Airline
+                elif 'Route' in flight and isinstance(flight['Route'], dict):
+                    airline = flight['Route'].get('Airline', None)
+                
+                # Prioridade 3: MarketingCarrier
+                if not airline and 'MarketingCarrier' in flight:
+                    airline = flight['MarketingCarrier']
+                
+                # Prioridade 4: OperatedBy
+                if not airline and 'OperatedBy' in flight:
+                    airline = flight['OperatedBy']
+                
+                # Prioridade 5: Inferir via Source
+                if not airline:
+                    source_code = flight.get('Source', '').lower()
+                    if source_code in SOURCE_TO_AIRLINE:
+                        airline = SOURCE_TO_AIRLINE[source_code]
+                    else:
+                        airline = source_code.title() if source_code else None
+                
+                # Se não encontrou companhia, não aplica filtro (mantém voo)
+                # Se encontrou, aplica filtro (substring case insensitive)
+                if airline and airline_filter.lower() not in airline.lower():
                     continue  # Descarta (companhia diferente)
             
             # Filtro 4: Program (case insensitive substring match)
@@ -565,7 +663,42 @@ class SeatsAeroClient:
                 origin = flight.get('OriginAirport', flight.get('Origin', '')).upper()
                 destination = flight.get('DestinationAirport', flight.get('Destination', '')).upper()
             
-            airline = flight.get('Airline', flight.get('MarketingCarrier', ''))
+            # Extrair airline (BUSCA ROBUSTA com múltiplas fontes)
+            airline = None
+            
+            # Prioridade 1: Campo direto 'Airline'
+            if 'Airline' in flight and flight['Airline']:
+                airline = flight['Airline']
+            
+            # Prioridade 2: Route.Airline (estrutura aninhada)
+            elif 'Route' in flight and isinstance(flight['Route'], dict):
+                airline = flight['Route'].get('Airline', None)
+            
+            # Prioridade 3: MarketingCarrier
+            if not airline and 'MarketingCarrier' in flight:
+                airline = flight['MarketingCarrier']
+            
+            # Prioridade 4: OperatedBy
+            if not airline and 'OperatedBy' in flight:
+                airline = flight['OperatedBy']
+            
+            # Prioridade 5: Inferir via Source (programa de milhas)
+            if not airline:
+                source_code = flight.get('Source', '').lower()
+                if source_code in SOURCE_TO_AIRLINE:
+                    airline = SOURCE_TO_AIRLINE[source_code]
+                    print(f"ℹ️  Cia inferida via Source: {source_code} -> {airline} ({origin}-{destination})")
+                else:
+                    # Fallback final: Capitalizar o source
+                    airline = source_code.title() if source_code else "Companhia Desconhecida"
+                    if airline == "Companhia Desconhecida":
+                        print(f"⚠️  Companhia não detectada para voo {origin}-{destination} (Source: {source_code or 'N/A'})")
+                    else:
+                        print(f"ℹ️  Cia inferida via Source (fallback): {source_code} -> {airline} ({origin}-{destination})")
+            else:
+                # Debug: Log da companhia detectada
+                print(f"✅ Companhia detectada: {airline} ({origin}-{destination})")
+            
             source = flight.get('Source', '').lower()
             
             if not origin or not destination:

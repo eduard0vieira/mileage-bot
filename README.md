@@ -243,6 +243,8 @@ pytest tests/ --cov=app      # Com cobertura
 - **[API_FILTERS_FIX.md](API_FILTERS_FIX.md)**: Separação de filtros API vs. locais
 - **[API_MAPPING_FIX.md](API_MAPPING_FIX.md)**: Correção do mapeamento JSON → Objeto
 - **[TYPE_SAFETY_FIX.md](TYPE_SAFETY_FIX.md)**: Correção de TypeError (strings → int)
+- **[AIRLINE_EXTRACTION_FIX.md](AIRLINE_EXTRACTION_FIX.md)**: Extração robusta do campo airline
+- **[AIRLINE_INFERENCE_FIX.md](AIRLINE_INFERENCE_FIX.md)**: Inferência de airline via Source
 - **[API_STRUCTURE_REFERENCE.md](API_STRUCTURE_REFERENCE.md)**: Referência rápida - estrutura da API Seats.aero
 - **[LOYALTY_PROGRAMS.md](LOYALTY_PROGRAMS.md)**: Guia completo de programas de fidelidade
 - **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)**: Referência rápida de comandos
