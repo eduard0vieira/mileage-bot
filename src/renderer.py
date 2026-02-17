@@ -59,6 +59,9 @@ def render_alert(batch: FlightBatch, template_name: str) -> str:
         "program": batch.program,
         "cost": batch.cost,
         "cabin": batch.cabin,
+        # Valores numéricos para mostrar variação de preço
+        "min_cost": batch.min_cost,
+        "max_cost": batch.max_cost,
         # Para templates que usam {% for month, days in ... %}
         "formatted_outbound": batch.get_outbound_dates_dict(),
         "formatted_inbound": batch.get_inbound_dates_dict(),

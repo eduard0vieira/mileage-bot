@@ -209,7 +209,7 @@ Exemplos:
     )
     
     parser.add_argument(
-        '--max-staleness',
+        '--max-staleness', '--stale',
         type=int,
         default=48,
         dest='max_staleness',

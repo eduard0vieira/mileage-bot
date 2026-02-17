@@ -2,6 +2,8 @@
 🚨 *Classe {{ cabin }} {{ airline }}*
 
 🌍 *Programa de Milhas: {{ program }}*
+💰 *Valor:* {% if min_cost and max_cost %}De {{ min_cost }} a {{ max_cost }} milhas{% else %}{{ cost }}{% endif %}
+
 🤑 {{ cost }} por trecho + taxas
 
 *{{ origin }} → {{ destination }}:*

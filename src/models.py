@@ -171,30 +171,49 @@ class FlightBatch:
         Por que criar este método separado?
         - O método `format_dates_by_month()` retorna uma STRING: "Fev 2026: 15 (9), 18 (4)"
         - Mas para usar no Jinja2 com `{% for month, days in ... %}`, precisamos de um DICT
-        - Retorna: {"Fev 2026": "15 (9), 18 (4)", "Mar 2026": "01 (2)"}
+        - Retorna: {"Mai 2026": "01 (9), 05 (4)", "Jun 2026": "10 (2)"}
+        
+        REGRAS ESTRITAS:
+        - Ordenação cronológica rigorosa (Mai antes de Jun)
+        - Meses com primeira letra MAIÚSCULA (Mai, Jun, Jul)
+        - Dias com zero à esquerda (01, 05, 10)
         
         Args:
             dates: Lista de tuplas (data_iso, assentos_disponíveis)
             lang: Locale para formatação (padrão: pt_BR)
         
         Returns:
-            Dicionário onde:
-            - chave = mês/ano (ex: "Fev 2026")
-            - valor = dias com assentos (ex: "15 (9), 18 (4)")
+            Dicionário ordenado onde:
+            - chave = mês/ano (ex: "Mai 2026")
+            - valor = dias com assentos (ex: "01 (9), 05 (4)")
         """
         if not dates:
             return {}
         
-        grouped = defaultdict(list)
+        # Passo 1: Ordenar datas cronologicamente (mais antiga primeiro)
+        sorted_dates = sorted(dates, key=lambda x: x[0])
         
-        for date_str, seats in dates:
+        # Passo 2: Agrupar por mês/ano, mantendo a ordem
+        grouped = defaultdict(list)
+        month_order = []  # Mantém ordem dos meses conforme aparecem
+        
+        for date_str, seats in sorted_dates:
             date_obj = arrow.get(date_str)
-            month_year_key = date_obj.format('MMM YYYY', locale=lang)
+            
+            # Formata mês: "mai 2026" → capitalize → "Mai 2026"
+            month_year_key = date_obj.format('MMM YYYY', locale=lang).capitalize()
+            
+            # Formata dia: "01" (sempre com zero à esquerda)
             day_seats = f"{date_obj.format('DD')} ({seats})"
+            
+            # Adiciona à lista daquele mês
+            if month_year_key not in month_order:
+                month_order.append(month_year_key)
             grouped[month_year_key].append(day_seats)
         
-        # Converte defaultdict para dict normal e junta os dias com vírgula
-        return {month: ", ".join(days) for month, days in grouped.items()}
+        # Passo 3: Retornar dicionário ordenado
+        # Python 3.7+ mantém ordem de inserção
+        return {month: ", ".join(grouped[month]) for month in month_order}
     
     def get_outbound_dates_dict(self) -> Dict[str, str]:
         """Retorna datas de ida como dicionário (para usar em templates)."""
