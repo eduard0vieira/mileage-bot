@@ -1,10 +1,13 @@
 """
-Importer for Flight Alert CLI
+File Service - Importador de arquivos input.txt
+
+Este módulo é responsável por ler e parsear arquivos no formato input.txt
+e transformá-los em objetos FlightBatch.
 """
 
 from typing import List, Tuple
 import re
-from src.models import FlightBatch
+from app.core.models import FlightBatch
 
 
 # Mapeamento de meses PT->EN

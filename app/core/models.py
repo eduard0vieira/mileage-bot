@@ -96,7 +96,7 @@ class FlightBatch:
             >>> print(flight.destination)   # "Miami"
             >>> print(flight.dest_flag)     # "🇺🇸"
         """
-        from src.utils import load_airport_data
+        from app.utils.helpers import load_airport_data
         
         # Busca dados do aeroporto de origem
         origin_data = load_airport_data(self.origin_code)

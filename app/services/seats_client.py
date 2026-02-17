@@ -8,8 +8,8 @@ import requests
 from typing import Optional, Dict, Any, List, Tuple
 from datetime import datetime, date, timedelta
 from collections import defaultdict
-from src.config import Config
-from src.models import FlightBatch
+from app.core.config import Config
+from app.core.models import FlightBatch
 
 
 # Mapeamento de códigos de programas para nomes bonitos

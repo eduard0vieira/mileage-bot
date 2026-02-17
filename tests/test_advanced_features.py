@@ -10,8 +10,14 @@ Este arquivo demonstra:
 6. Cálculo de min/max cost
 """
 
+import sys
+from pathlib import Path
+
+# Adiciona a raiz do projeto ao PYTHONPATH
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from datetime import datetime, timedelta
-from src.seats_client import SeatsAeroClient
+from app.services.seats_client import SeatsAeroClient
 
 # Mock de dados da API Seats.aero
 mock_api_response = [

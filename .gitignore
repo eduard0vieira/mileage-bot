@@ -25,8 +25,23 @@ dist/
 .DS_Store
 Thumbs.db
 
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+.hypothesis/
+.tox/
+
+# Development
+*.ipynb_checkpoints/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
 # Project specific
 data/*.json
 !data/example.json
+
 
 

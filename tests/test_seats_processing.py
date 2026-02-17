@@ -5,10 +5,16 @@ Simulates API responses and tests the process_search_results method.
 Execute: python test_seats_processing.py
 """
 
+import sys
+from pathlib import Path
+
+# Adiciona a raiz do projeto ao PYTHONPATH
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from rich.console import Console
 from rich.table import Table
-from src.seats_client import SeatsAeroClient
-from src.renderer import render_alert
+from app.services.seats_client import SeatsAeroClient
+from app.ui.renderer import render_alert
 
 
 def main():

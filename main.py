@@ -12,9 +12,9 @@ Execute:
 import argparse
 from datetime import datetime, timedelta
 from rich.console import Console
-from src.importer import parse_file_batch
-from src.renderer import render_alert
-from src.seats_client import SeatsAeroClient
+from app.services.file_service import parse_file_batch
+from app.ui.renderer import render_alert
+from app.services.seats_client import SeatsAeroClient
 
 
 def mode_file(console: Console):

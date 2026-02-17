@@ -8,8 +8,15 @@ Valida:
 4. Exibição de min_cost e max_cost no template
 """
 
-from src.models import FlightBatch
-from src.renderer import render_alert
+import sys
+from pathlib import Path
+
+# Adiciona a raiz do projeto ao PYTHONPATH
+# Isso permite importar 'app' quando rodando testes diretamente
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from app.core.models import FlightBatch
+from app.ui.renderer import render_alert
 
 
 def test_date_formatting():

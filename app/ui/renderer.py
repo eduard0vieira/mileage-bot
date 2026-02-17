@@ -7,7 +7,7 @@ em textos formatados usando templates Jinja2.
 
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
-from src.models import FlightBatch
+from app.core.models import FlightBatch
 
 
 def render_alert(batch: FlightBatch, template_name: str) -> str:

@@ -10,7 +10,8 @@ from dotenv import load_dotenv
 
 
 # Load .env file from project root
-env_path = Path(__file__).parent.parent / '.env'
+# Ajustado: agora config.py está em app/core/, então precisa subir 2 níveis
+env_path = Path(__file__).parent.parent.parent / '.env'
 load_dotenv(dotenv_path=env_path)
 
 

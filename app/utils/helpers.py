@@ -48,10 +48,10 @@ def load_airport_data(iata_code: str) -> Dict[str, str]:
         {"city": "XYZ", "flag": "✈️"}
     """
     # Caminho para o arquivo JSON de aeroportos
-    # Path(__file__).parent = pasta 'src/'
-    # .parent = volta para a raiz do projeto
-    # / "data" / "airports.json" = caminho completo
-    airports_file = Path(__file__).parent.parent / "data" / "airports.json"
+    # Path(__file__).parent = pasta 'app/utils/'
+    # .parent.parent = app/
+    # .parent.parent.parent = raiz do projeto
+    airports_file = Path(__file__).parent.parent.parent / "data" / "airports.json"
     
     # Normaliza o código para maiúsculas (GRU, gru, Gru → GRU)
     iata_code_upper = iata_code.upper().strip()
