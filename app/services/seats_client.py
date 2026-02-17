@@ -12,39 +12,55 @@ from app.core.config import Config
 from app.core.models import FlightBatch
 
 
-# Mapeamento de códigos de programas para nomes bonitos
-PROGRAM_NAMES = {
-    'sms': 'Smiles',
-    'lifemiles': 'LifeMiles',
-    'avianca': 'LifeMiles',
-    'aeroplan': 'Aeroplan',
+# Mapeamento completo de códigos Seats.aero para nomes de programas de fidelidade
+PROGRAM_MAPPING = {
+    # Star Alliance
+    'aeroplan': 'Air Canada Aeroplan',
     'united': 'United MileagePlus',
-    'aa': 'AAdvantage',
-    'delta': 'Delta SkyMiles',
-    'virgin': 'Virgin Atlantic',
+    'avianca': 'Avianca LifeMiles',
+    'lifemiles': 'Avianca LifeMiles',
+    'ana': 'ANA Mileage Club',
+    'asiana': 'Asiana Club',
+    'lufthansa': 'Lufthansa Miles & More',
+    'sas': 'SAS EuroBonus',
+    'eurobonus': 'SAS EuroBonus',
+    'singapore': 'Singapore Airlines KrisFlyer',
+    'thai': 'Thai Royal Orchid Plus',
+    'turkish': 'Turkish Miles&Smiles',
+    
+    # OneWorld
+    'aa': 'American AAdvantage',
+    'aadvantage': 'American AAdvantage',
     'ba': 'British Airways Executive Club',
+    'club': 'British Airways Executive Club',
+    'cathay': 'Cathay Pacific Asia Miles',
+    'jal': 'JAL Mileage Bank',
     'qantas': 'Qantas Frequent Flyer',
-    'emirates': 'Emirates Skywards',
-    'etihad': 'Etihad Guest',
+    'qr': 'Qatar Privilege Club',
+    'privilege': 'Qatar Privilege Club',
+    
+    # SkyTeam
+    'delta': 'Delta SkyMiles',
+    'flyingblue': 'Flying Blue',
+    'aeromexico': 'Aeromexico Club Premier',
+    'korean': 'Korean Air SKYPASS',
+    
+    # Outras companhias
     'alaska': 'Alaska Mileage Plan',
+    'virgin': 'Virgin Atlantic Flying Club',
+    'flyingclub': 'Virgin Atlantic Flying Club',
+    'velocity': 'Virgin Australia Velocity',
+    'etihad': 'Etihad Guest',
+    'emirates': 'Emirates Skywards',
     'tap': 'TAP Miles&Go',
+    
+    # América do Sul
     'latam': 'LATAM Pass',
-    'azul': 'Azul TudoAzul',
+    'sms': 'Smiles',
+    'smiles': 'Smiles',
     'gol': 'Gol Smiles',
-    'qr': 'Privilege Club',
-    'privilege': 'Privilege Club',
-}
-
-
-# Mapeamento reverso: nome do programa → códigos da API
-PROGRAM_TO_SOURCE = {
-    'privilege club': ['qr', 'privilege'],
-    'smiles': ['sms'],
-    'lifemiles': ['lifemiles', 'avianca'],
-    'tap miles&go': ['tap'],
-    'latam pass': ['latam'],
-    'aadvantage': ['aa'],
-    'united mileageplus': ['united'],
+    'azul': 'Azul Fidelidade',
+    'blue': 'Azul Fidelidade',
 }
 
 
@@ -160,14 +176,14 @@ class SeatsAeroClient:
         date_start: Optional[str] = None,
         date_end: Optional[str] = None,
         days: int = 60,
-        cabin_class: Optional[str] = None,
-        direct_only: bool = False,
-        max_staleness: int = 48,
-        program_filter: Optional[str] = None,
-        airline_filter: Optional[str] = None
+        cabin_class: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Search for award seat availability.
+        Search for award seat availability in Seats.aero API.
+        
+        IMPORTANTE: Filtros de cliente (airline, direct, staleness, program)
+        NÃO são enviados para a API. Eles devem ser aplicados localmente
+        via process_search_results().
         
         Args:
             origin: Origin airport code (e.g., "GRU")
@@ -176,13 +192,25 @@ class SeatsAeroClient:
             date_end: End date ISO (defaults to date_start + days)
             days: Days forward to search (default 60, max 365)
             cabin_class: Cabin filter ("economy", "business", "first")
-            direct_only: Only show direct flights
-            max_staleness: Max hours since last seen (default 48)
-            program_filter: Filter by program name (ex: "Privilege Club")
-            airline_filter: Filter by airline
         
         Returns:
-            JSON response with availability data
+            JSON response with availability data (raw from API)
+        
+        Example:
+            >>> client = SeatsAeroClient()
+            >>> results = client.search_availability(
+            ...     origin="GRU",
+            ...     destination="MIA",
+            ...     days=365,
+            ...     cabin_class="business"
+            ... )
+            >>> # Aplicar filtros localmente:
+            >>> batches = client.process_search_results(
+            ...     results,
+            ...     airline_filter="United",
+            ...     direct_only=True,
+            ...     max_staleness_hours=24
+            ... )
         """
         # Calculate dates if not provided
         if not date_start:
@@ -193,28 +221,17 @@ class SeatsAeroClient:
             end_date_obj = start_date_obj + timedelta(days=days)
             date_end = end_date_obj.isoformat()
         
+        # IMPORTANTE: Apenas parâmetros aceitos pela API Seats.aero
         params = {
-            'origin': origin.upper(),
-            'destination': destination.upper(),
-            'date': date_start,
-            'date_end': date_end,
-            'max_staleness': max_staleness,
+            'origin_airport': origin.upper(),
+            'destination_airport': destination.upper(),
+            'start_date': date_start,
+            'end_date': date_end,
         }
         
+        # Cabin é opcional
         if cabin_class:
             params['cabin'] = cabin_class.lower()
-        
-        if direct_only:
-            params['direct'] = 'true'
-        
-        # Map program filter to source codes
-        if program_filter:
-            sources = PROGRAM_TO_SOURCE.get(program_filter.lower())
-            if sources:
-                params['source'] = ','.join(sources)
-        
-        if airline_filter:
-            params['airline'] = airline_filter
         
         # Try common endpoint patterns
         endpoint = '/search'
@@ -222,6 +239,7 @@ class SeatsAeroClient:
         try:
             return self._make_request('GET', endpoint, params=params)
         except Exception as e:
+            # Fallback para endpoint alternativo
             if '/search' in str(endpoint):
                 try:
                     endpoint = '/availability'
@@ -319,17 +337,25 @@ class SeatsAeroClient:
                 if not is_direct:
                     continue  # Descarta (tem conexão)
             
-            # Filtro 3: Airline
+            # Filtro 3: Airline (case insensitive substring match)
             if airline_filter:
                 airline = flight.get('Airline', '')
-                if airline.lower() != airline_filter.lower():
+                # Aceita substring: 'latam' matches 'LATAM Airlines'
+                if airline_filter.lower() not in airline.lower():
                     continue  # Descarta (companhia diferente)
             
-            # Filtro 4: Program
+            # Filtro 4: Program (case insensitive substring match)
             if program_filter:
                 source = flight.get('Source', '').lower()
-                allowed_sources = PROGRAM_TO_SOURCE.get(program_filter.lower(), [])
-                if allowed_sources and source not in allowed_sources:
+                # Traduzir código para nome do programa
+                program_name = PROGRAM_MAPPING.get(source, source.title())
+                
+                # Verifica se program_filter está no nome traduzido OU no código
+                # Ex: 'Qatar' matches 'Qatar Privilege Club'
+                # Ex: 'privilege' matches 'privilege' (código)
+                filter_lower = program_filter.lower()
+                if (filter_lower not in program_name.lower() and 
+                    filter_lower not in source):
                     continue  # Descarta (programa diferente)
             
             filtered_results.append(flight)
@@ -353,7 +379,8 @@ class SeatsAeroClient:
         batches = []
         
         for (origin_code, dest_code, airline, source), flights in groups.items():
-            program = PROGRAM_NAMES.get(source, source.title())
+            # Traduzir código do programa para nome legível
+            program = PROGRAM_MAPPING.get(source, source.title())
             
             dates = []
             costs = []

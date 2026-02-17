@@ -57,15 +57,14 @@ def mode_api(console: Console, args):
         console.print("[cyan]🔍 Conectando à API...[/cyan]\n")
         
         with SeatsAeroClient() as client:
+            # IMPORTANTE: Passar apenas parâmetros aceitos pela API
+            # Filtros de cliente (airline, direct, staleness, program)
+            # serão aplicados localmente via process_search_results
             results = client.search_availability(
                 origin=args.origin,
                 destination=args.dest,
                 days=args.days,
-                cabin_class=args.cabin,
-                direct_only=args.direct,
-                max_staleness=args.max_staleness,
-                program_filter=args.program,
-                airline_filter=args.airline
+                cabin_class=args.cabin
             )
         
         console.print(f"[green]✅ Busca realizada![/green]\n")
@@ -88,7 +87,7 @@ def mode_api(console: Console, args):
         
         console.print(f"[green]✅ {len(flights_list)} voo(s) retornado(s) pela API[/green]\n")
         
-        # Processar e agrupar (com filtros)
+        # Processar e agrupar (AQUI aplicamos os filtros localmente)
         console.print("[cyan]🔄 Processando, filtrando e agrupando...[/cyan]\n")
         batches = SeatsAeroClient.process_search_results(
             flights_list,
