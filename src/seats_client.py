@@ -5,9 +5,33 @@ Client for interacting with Seats.aero Partner API.
 """
 
 import requests
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 from datetime import datetime, date
+from collections import defaultdict
 from src.config import Config
+from src.models import FlightBatch
+
+
+# Mapeamento de códigos de programas para nomes bonitos
+PROGRAM_NAMES = {
+    'sms': 'Smiles',
+    'lifemiles': 'LifeMiles',
+    'avianca': 'LifeMiles',
+    'aeroplan': 'Aeroplan',
+    'united': 'United MileagePlus',
+    'aa': 'AAdvantage',
+    'delta': 'Delta SkyMiles',
+    'virgin': 'Virgin Atlantic',
+    'ba': 'British Airways Executive Club',
+    'qantas': 'Qantas Frequent Flyer',
+    'emirates': 'Emirates Skywards',
+    'etihad': 'Etihad Guest',
+    'alaska': 'Alaska Mileage Plan',
+    'tap': 'TAP Miles&Go',
+    'latam': 'LATAM Pass',
+    'azul': 'Azul TudoAzul',
+    'gol': 'Gol Smiles',
+}
 
 
 class SeatsAeroClient:
@@ -215,6 +239,139 @@ class SeatsAeroClient:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager cleanup."""
         self.close()
+    
+    @staticmethod
+    def process_search_results(results: List[Dict[str, Any]]) -> List[FlightBatch]:
+        """
+        Processa resultados da API Seats.aero e agrupa em FlightBatch.
+        
+        Por que agrupar?
+        - API retorna voos individuais (um por data/airline/program)
+        - Queremos agrupar em "batches" para gerar um alerta por grupo
+        - Grupo = mesma origem, destino, companhia, programa
+        
+        Args:
+            results: Lista de voos da API (cada dict é um voo)
+        
+        Returns:
+            Lista de FlightBatch agrupados e processados
+        
+        Exemplo de input da API:
+        [
+            {
+                "Origin": "GRU",
+                "Destination": "MIA",
+                "Airline": "United",
+                "Source": "united",
+                "Date": "2026-03-01",
+                "RemainingSeats": 4,
+                "MilesCost": 77000,
+                "CabinClass": "business",
+                ...
+            },
+            ...
+        ]
+        """
+        if not results:
+            return []
+        
+        # Agrupar por (Origin, Destination, Airline, Source)
+        groups = defaultdict(list)
+        
+        for flight in results:
+            # Chave de agrupamento
+            key = (
+                flight.get('Origin', '').upper(),
+                flight.get('Destination', '').upper(),
+                flight.get('Airline', ''),
+                flight.get('Source', '').lower()
+            )
+            groups[key].append(flight)
+        
+        # Criar FlightBatch para cada grupo
+        batches = []
+        
+        for (origin_code, dest_code, airline, source), flights in groups.items():
+            # Mapear source para nome bonito do programa
+            program = PROGRAM_NAMES.get(source, source.title())
+            
+            # Coletar todas as datas com assentos
+            dates = []
+            costs = []
+            cabin_class = None
+            
+            for flight in flights:
+                # Data
+                date_str = flight.get('Date', flight.get('DepartureDate', ''))
+                if not date_str:
+                    continue
+                
+                # Assentos
+                seats = flight.get('RemainingSeats', flight.get('Seats', None))
+                if seats is None:
+                    seats = 4  # Default: 4+ assentos
+                
+                dates.append((date_str, seats))
+                
+                # Custo em milhas
+                miles_cost = flight.get('MilesCost', flight.get('Miles', 0))
+                if miles_cost:
+                    costs.append(miles_cost)
+                
+                # Classe (pega do primeiro voo)
+                if cabin_class is None:
+                    cabin_class = flight.get('CabinClass', flight.get('Cabin', 'economy'))
+            
+            if not dates:
+                continue  # Skip se não tem datas
+            
+            # Determinar custo (menor valor encontrado)
+            if costs:
+                min_cost = min(costs)
+                # Formatar: 77000 -> "77k"
+                if min_cost >= 1000:
+                    cost_str = f"{min_cost // 1000}k"
+                else:
+                    cost_str = str(min_cost)
+            else:
+                cost_str = "Consultar"
+            
+            # Mapear cabin class
+            cabin_map = {
+                'economy': 'Econômica',
+                'premium_economy': 'Econômica Premium',
+                'business': 'Executiva',
+                'first': 'Primeira Classe'
+            }
+            cabin_display = cabin_map.get(cabin_class, cabin_class.title())
+            
+            # Criar FlightBatch
+            batch = FlightBatch(
+                origin="",
+                origin_code=origin_code,
+                origin_flag="",
+                destination="",
+                dest_code=dest_code,
+                dest_flag="",
+                airline=airline,
+                program=program,
+                cost=cost_str,
+                cabin=cabin_display,
+                dates_outbound=dates,
+                dates_inbound=[],  # API normalmente retorna só ida, volta é outra busca
+                notes=f"Encontrado via API Seats.aero ({len(dates)} opção/opções disponível/disponíveis)"
+            )
+            
+            # Enriquecer com dados de aeroportos
+            try:
+                batch.enrich_airport_data()
+            except Exception:
+                # Se falhar, deixa os campos vazios (já estão)
+                pass
+            
+            batches.append(batch)
+        
+        return batches
 
 
 def main():
