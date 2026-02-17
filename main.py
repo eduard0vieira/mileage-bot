@@ -36,13 +36,11 @@ def main():
     for i, batch in enumerate(batches, 1):
         console.print(f"[bold cyan]🎯 Processando voo {i}/{len(batches)}...[/bold cyan]")
         console.print(f"  • Rota: {batch.origin_code} → {batch.dest_code}")
-        console.print(f"  • Cia: {batch.airline}")
+        console.print(f"  • Cia: {batch.airline}\n")
         
         # Enriquecer dados
         try:
             batch.enrich_airport_data()
-            console.print(f"  • Origem: {batch.origin} {batch.origin_flag}")
-            console.print(f"  • Destino: {batch.destination} {batch.dest_flag}\n")
         except Exception as e:
             console.print(f"[bold red]❌ Erro ao enriquecer:[/bold red] {e}\n")
             continue
@@ -54,32 +52,22 @@ def main():
             console.print(f"[bold red]❌ Erro ao renderizar:[/bold red] {e}\n")
             continue
         
-        # Mostrar resultado
-        console.print("╔" + "═" * 68 + "╗")
-        console.print(f"║  [bold]VOO {i}[/bold] - {batch.route} {' ' * (52 - len(batch.route))}║")
-        console.print("╠" + "═" * 68 + "╣")
-        console.print("║" + " " * 68 + "║")
+        # Separador antes do alerta
+        print("." * 70)
         
-        # Imprimir o alerta (texto puro)
-        for line in alert_text.split('\n'):
-            # Limita a 66 chars para caber na caixa
-            console.print(f"║ {line[:66]:<66} ║")
+        # Imprimir alerta (TEXTO PURO - sem bordas)
+        print(alert_text)
         
-        console.print("║" + " " * 68 + "║")
-        console.print("╚" + "═" * 68 + "╝")
-        console.print()
-        
-        # Separador entre voos (exceto no último)
-        if i < len(batches):
-            console.print("[dim]" + "·" * 70 + "[/dim]")
-            console.print()
+        # Separador depois do alerta
+        print("." * 70)
+        print()
     
     # Resumo final
     console.print("=" * 70)
     console.print(f"✅ {len(batches)} alerta(s) gerado(s) com sucesso!")
     console.print("=" * 70)
     console.print("\n[bold cyan]💡 DICA:[/bold cyan]")
-    console.print("Copie cada alerta individualmente (dentro das caixas)")
+    console.print("Selecione cada alerta entre os separadores de pontos")
     console.print("Para adicionar mais voos, separe com '---' no input.txt\n")
 
 
