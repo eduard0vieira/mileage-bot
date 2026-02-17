@@ -35,18 +35,22 @@ def mode_file(console: Console):
     render_batches(console, batches)
 
 
-def mode_api(console: Console, origin: str, dest: str, days: int, cabin: str):
+def mode_api(console: Console, args):
     """Modo API: Busca em Seats.aero e gera alertas."""
     
     console.print(f"[bold yellow]🔌 Modo API - Buscando em Seats.aero...[/bold yellow]\n")
-    console.print(f"  • Origem: {origin}")
-    console.print(f"  • Destino: {dest}")
-    console.print(f"  • Período: Próximos {days} dias")
-    console.print(f"  • Classe: {cabin}\n")
-    
-    # Calcular range de datas
-    date_start = datetime.now().date()
-    date_end = date_start + timedelta(days=days)
+    console.print(f"  • Origem: {args.origin}")
+    console.print(f"  • Destino: {args.dest}")
+    console.print(f"  • Período: Próximos {args.days} dias")
+    console.print(f"  • Classe: {args.cabin}")
+    console.print(f"  • Max staleness: {args.max_staleness}h")
+    if args.direct:
+        console.print(f"  • Filtro: Somente voos diretos")
+    if args.program:
+        console.print(f"  • Programa: {args.program}")
+    if args.airline:
+        console.print(f"  • Companhia: {args.airline}")
+    console.print()
     
     # Buscar na API
     try:
@@ -54,18 +58,20 @@ def mode_api(console: Console, origin: str, dest: str, days: int, cabin: str):
         
         with SeatsAeroClient() as client:
             results = client.search_availability(
-                origin=origin,
-                destination=dest,
-                date_start=date_start.isoformat(),
-                date_end=date_end.isoformat(),
-                cabin_class=cabin
+                origin=args.origin,
+                destination=args.dest,
+                days=args.days,
+                cabin_class=args.cabin,
+                direct_only=args.direct,
+                max_staleness=args.max_staleness,
+                program_filter=args.program,
+                airline_filter=args.airline
             )
         
         console.print(f"[green]✅ Busca realizada![/green]\n")
         
-        # Verificar se results é lista ou dict com chave 'data'/'results'
+        # Extrair lista de voos
         if isinstance(results, dict):
-            # API pode retornar {"data": [...], "meta": {...}}
             flights_list = results.get('data', results.get('results', results.get('flights', [])))
         else:
             flights_list = results
@@ -73,22 +79,31 @@ def mode_api(console: Console, origin: str, dest: str, days: int, cabin: str):
         if not flights_list:
             console.print("[bold yellow]⚠️  Nenhum voo encontrado com esses filtros.[/bold yellow]")
             console.print("\n💡 Dica: Tente:")
-            console.print("  • Aumentar o período (--days 90)")
+            console.print("  • Aumentar o período (--days 90 ou --days 365)")
             console.print("  • Mudar a classe (--cabin economy)")
+            console.print("  • Remover filtro de companhia")
+            console.print("  • Remover filtro de programa")
             console.print("  • Tentar outra rota\n")
             return
         
-        console.print(f"[green]✅ {len(flights_list)} voo(s) encontrado(s) na API[/green]\n")
+        console.print(f"[green]✅ {len(flights_list)} voo(s) retornado(s) pela API[/green]\n")
         
-        # Processar e agrupar
-        console.print("[cyan]🔄 Processando e agrupando...[/cyan]\n")
-        batches = SeatsAeroClient.process_search_results(flights_list)
+        # Processar e agrupar (com filtros)
+        console.print("[cyan]🔄 Processando, filtrando e agrupando...[/cyan]\n")
+        batches = SeatsAeroClient.process_search_results(
+            flights_list,
+            max_staleness_hours=args.max_staleness,
+            direct_only=args.direct,
+            airline_filter=args.airline,
+            program_filter=args.program
+        )
         
         if not batches:
-            console.print("[bold yellow]⚠️  Nenhum batch criado após processamento.[/bold yellow]\n")
+            console.print("[bold yellow]⚠️  Nenhum batch criado após filtros.[/bold yellow]")
+            console.print("Todos os voos foram descartados pelos filtros aplicados.\n")
             return
         
-        console.print(f"[green]✅ Agrupados em {len(batches)} batch(es)![/green]\n")
+        console.print(f"[green]✅ Agrupados em {len(batches)} batch(es) após filtros![/green]\n")
         
         render_batches(console, batches)
         
@@ -148,7 +163,9 @@ def main():
 Exemplos:
   python main.py                                    # Lê input.txt (padrão)
   python main.py --mode api --origin GRU --dest MIA
-  python main.py --mode api --origin GIG --dest LIS --days 90 --cabin economy
+  python main.py --mode api --origin GRU --dest MIA --days 365 --cabin economy --direct
+  python main.py --mode api --origin GRU --dest DOH --days 180 --program "Privilege Club"
+  python main.py --mode api --origin GRU --dest MIA --airline United --days 90
         """
     )
     
@@ -175,7 +192,7 @@ Exemplos:
         '--days',
         type=int,
         default=60,
-        help='Quantos dias para frente buscar (padrão: 60)'
+        help='Quantos dias para frente buscar (padrão: 60, máx: 365)'
     )
     
     parser.add_argument(
@@ -183,6 +200,32 @@ Exemplos:
         choices=['economy', 'business', 'first'],
         default='business',
         help='Classe de cabine (padrão: business)'
+    )
+    
+    parser.add_argument(
+        '--direct',
+        action='store_true',
+        help='Apenas voos diretos (sem conexões)'
+    )
+    
+    parser.add_argument(
+        '--max-staleness',
+        type=int,
+        default=48,
+        dest='max_staleness',
+        help='Máximo de horas desde última atualização na API (padrão: 48h)'
+    )
+    
+    parser.add_argument(
+        '--program',
+        type=str,
+        help='Filtrar por programa de milhas (ex: "Privilege Club", "Smiles")'
+    )
+    
+    parser.add_argument(
+        '--airline',
+        type=str,
+        help='Filtrar por companhia aérea (ex: "United", "Qatar")'
     )
     
     args = parser.parse_args()
@@ -201,7 +244,12 @@ Exemplos:
             parser.print_help()
             return
         
-        mode_api(console, args.origin, args.dest, args.days, args.cabin)
+        # Validar days
+        if args.days < 1 or args.days > 365:
+            console.print("[bold red]❌ --days deve estar entre 1 e 365![/bold red]\n")
+            return
+        
+        mode_api(console, args)
     else:
         mode_file(console)
 

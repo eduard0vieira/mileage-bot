@@ -6,7 +6,7 @@ Client for interacting with Seats.aero Partner API.
 
 import requests
 from typing import Optional, Dict, Any, List, Tuple
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from collections import defaultdict
 from src.config import Config
 from src.models import FlightBatch
@@ -31,6 +31,20 @@ PROGRAM_NAMES = {
     'latam': 'LATAM Pass',
     'azul': 'Azul TudoAzul',
     'gol': 'Gol Smiles',
+    'qr': 'Privilege Club',
+    'privilege': 'Privilege Club',
+}
+
+
+# Mapeamento reverso: nome do programa → códigos da API
+PROGRAM_TO_SOURCE = {
+    'privilege club': ['qr', 'privilege'],
+    'smiles': ['sms'],
+    'lifemiles': ['lifemiles', 'avianca'],
+    'tap miles&go': ['tap'],
+    'latam pass': ['latam'],
+    'aadvantage': ['aa'],
+    'united mileageplus': ['united'],
 }
 
 
@@ -143,10 +157,14 @@ class SeatsAeroClient:
         self,
         origin: str,
         destination: str,
-        date_start: str,
+        date_start: Optional[str] = None,
         date_end: Optional[str] = None,
+        days: int = 60,
         cabin_class: Optional[str] = None,
-        direct_only: bool = False
+        direct_only: bool = False,
+        max_staleness: int = 48,
+        program_filter: Optional[str] = None,
+        airline_filter: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Search for award seat availability.
@@ -154,31 +172,34 @@ class SeatsAeroClient:
         Args:
             origin: Origin airport code (e.g., "GRU")
             destination: Destination airport code (e.g., "MIA")
-            date_start: Start date in ISO format "YYYY-MM-DD"
-            date_end: End date in ISO format (optional, defaults to date_start)
-            cabin_class: Cabin class filter ("economy", "business", "first")
+            date_start: Start date ISO "YYYY-MM-DD" (defaults to today)
+            date_end: End date ISO (defaults to date_start + days)
+            days: Days forward to search (default 60, max 365)
+            cabin_class: Cabin filter ("economy", "business", "first")
             direct_only: Only show direct flights
+            max_staleness: Max hours since last seen (default 48)
+            program_filter: Filter by program name (ex: "Privilege Club")
+            airline_filter: Filter by airline
         
         Returns:
             JSON response with availability data
-        
-        Example:
-            >>> client = SeatsAeroClient()
-            >>> results = client.search_availability(
-            ...     origin="GRU",
-            ...     destination="MIA",
-            ...     date_start="2026-02-15",
-            ...     cabin_class="business"
-            ... )
         """
+        # Calculate dates if not provided
+        if not date_start:
+            date_start = datetime.now().date().isoformat()
+        
+        if not date_end:
+            start_date_obj = datetime.fromisoformat(date_start).date()
+            end_date_obj = start_date_obj + timedelta(days=days)
+            date_end = end_date_obj.isoformat()
+        
         params = {
             'origin': origin.upper(),
             'destination': destination.upper(),
             'date': date_start,
+            'date_end': date_end,
+            'max_staleness': max_staleness,
         }
-        
-        if date_end:
-            params['date_end'] = date_end
         
         if cabin_class:
             params['cabin'] = cabin_class.lower()
@@ -186,15 +207,21 @@ class SeatsAeroClient:
         if direct_only:
             params['direct'] = 'true'
         
+        # Map program filter to source codes
+        if program_filter:
+            sources = PROGRAM_TO_SOURCE.get(program_filter.lower())
+            if sources:
+                params['source'] = ','.join(sources)
+        
+        if airline_filter:
+            params['airline'] = airline_filter
+        
         # Try common endpoint patterns
-        # Seats.aero API might use /search, /availability, or /flights
-        # Adjust based on actual API documentation
         endpoint = '/search'
         
         try:
             return self._make_request('GET', endpoint, params=params)
         except Exception as e:
-            # If endpoint fails, try alternative
             if '/search' in str(endpoint):
                 try:
                     endpoint = '/availability'
@@ -241,45 +268,79 @@ class SeatsAeroClient:
         self.close()
     
     @staticmethod
-    def process_search_results(results: List[Dict[str, Any]]) -> List[FlightBatch]:
+    def process_search_results(
+        results: List[Dict[str, Any]],
+        max_staleness_hours: int = 48,
+        direct_only: bool = False,
+        airline_filter: Optional[str] = None,
+        program_filter: Optional[str] = None
+    ) -> List[FlightBatch]:
         """
-        Processa resultados da API Seats.aero e agrupa em FlightBatch.
+        Processa e agrupa resultados da API Seats.aero.
         
-        Por que agrupar?
-        - API retorna voos individuais (um por data/airline/program)
-        - Queremos agrupar em "batches" para gerar um alerta por grupo
-        - Grupo = mesma origem, destino, companhia, programa
+        Filtros aplicados:
+        - max_staleness_hours: Descarta voos vistos há mais tempo
+        - direct_only: Descarta voos com conexão
+        - airline_filter: Filtra por companhia específica
+        - program_filter: Filtra por programa de milhas
         
         Args:
-            results: Lista de voos da API (cada dict é um voo)
+            results: Lista de voos da API
+            max_staleness_hours: Máximo de horas desde última atualização
+            direct_only: Se True, só voos diretos
+            airline_filter: Nome da companhia (ex: "United")
+            program_filter: Nome do programa (ex: "Privilege Club")
         
         Returns:
-            Lista de FlightBatch agrupados e processados
-        
-        Exemplo de input da API:
-        [
-            {
-                "Origin": "GRU",
-                "Destination": "MIA",
-                "Airline": "United",
-                "Source": "united",
-                "Date": "2026-03-01",
-                "RemainingSeats": 4,
-                "MilesCost": 77000,
-                "CabinClass": "business",
-                ...
-            },
-            ...
-        ]
+            Lista de FlightBatch agrupados
         """
         if not results:
+            return []
+        
+        # Filtrar resultados
+        filtered_results = []
+        now = datetime.now()
+        
+        for flight in results:
+            # Filtro 1: Staleness (última vez visto)
+            last_seen_str = flight.get('LastSeen', flight.get('UpdatedAt', ''))
+            if last_seen_str:
+                try:
+                    last_seen = datetime.fromisoformat(last_seen_str.replace('Z', '+00:00'))
+                    hours_ago = (now - last_seen).total_seconds() / 3600
+                    if hours_ago > max_staleness_hours:
+                        continue  # Descarta (muito antigo)
+                except:
+                    pass  # Se não conseguir parsear, mantém
+            
+            # Filtro 2: Direct only
+            if direct_only:
+                is_direct = flight.get('Direct', flight.get('Nonstop', True))
+                if not is_direct:
+                    continue  # Descarta (tem conexão)
+            
+            # Filtro 3: Airline
+            if airline_filter:
+                airline = flight.get('Airline', '')
+                if airline.lower() != airline_filter.lower():
+                    continue  # Descarta (companhia diferente)
+            
+            # Filtro 4: Program
+            if program_filter:
+                source = flight.get('Source', '').lower()
+                allowed_sources = PROGRAM_TO_SOURCE.get(program_filter.lower(), [])
+                if allowed_sources and source not in allowed_sources:
+                    continue  # Descarta (programa diferente)
+            
+            filtered_results.append(flight)
+        
+        if not filtered_results:
             return []
         
         # Agrupar por (Origin, Destination, Airline, Source)
         groups = defaultdict(list)
         
-        for flight in results:
-            # Chave de agrupamento
+        for flight in filtered_results:
             key = (
                 flight.get('Origin', '').upper(),
                 flight.get('Destination', '').upper(),
@@ -292,10 +353,8 @@ class SeatsAeroClient:
         batches = []
         
         for (origin_code, dest_code, airline, source), flights in groups.items():
-            # Mapear source para nome bonito do programa
             program = PROGRAM_NAMES.get(source, source.title())
             
-            # Coletar todas as datas com assentos
             dates = []
             costs = []
             cabin_class = None
@@ -309,34 +368,41 @@ class SeatsAeroClient:
                 # Assentos
                 seats = flight.get('RemainingSeats', flight.get('Seats', None))
                 if seats is None:
-                    seats = 4  # Default: 4+ assentos
+                    seats = 4
                 
                 dates.append((date_str, seats))
                 
-                # Custo em milhas
+                # Custo
                 miles_cost = flight.get('MilesCost', flight.get('Miles', 0))
                 if miles_cost:
                     costs.append(miles_cost)
                 
-                # Classe (pega do primeiro voo)
+                # Classe
                 if cabin_class is None:
                     cabin_class = flight.get('CabinClass', flight.get('Cabin', 'economy'))
             
             if not dates:
-                continue  # Skip se não tem datas
+                continue
             
-            # Determinar custo (menor valor encontrado)
-            if costs:
-                min_cost = min(costs)
-                # Formatar: 77000 -> "77k"
+            # Calcular min e max cost
+            min_cost = min(costs) if costs else None
+            max_cost = max(costs) if costs else None
+            
+            # Formatar custo display
+            if min_cost:
                 if min_cost >= 1000:
                     cost_str = f"{min_cost // 1000}k"
                 else:
                     cost_str = str(min_cost)
+                
+                # Se há variação de preço
+                if max_cost and max_cost != min_cost:
+                    max_str = f"{max_cost // 1000}k" if max_cost >= 1000 else str(max_cost)
+                    cost_str = f"{cost_str}-{max_str}"
             else:
                 cost_str = "Consultar"
             
-            # Mapear cabin class
+            # Mapear cabin
             cabin_map = {
                 'economy': 'Econômica',
                 'premium_economy': 'Econômica Premium',
@@ -344,6 +410,12 @@ class SeatsAeroClient:
                 'first': 'Primeira Classe'
             }
             cabin_display = cabin_map.get(cabin_class, cabin_class.title())
+            
+            # Nota com estatísticas
+            notes_parts = [f"Encontrado via API Seats.aero"]
+            notes_parts.append(f"{len(dates)} opções disponíveis")
+            if min_cost and max_cost and max_cost != min_cost:
+                notes_parts.append(f"Variação de preço: {min_cost//1000}k-{max_cost//1000}k")
             
             # Criar FlightBatch
             batch = FlightBatch(
@@ -358,15 +430,16 @@ class SeatsAeroClient:
                 cost=cost_str,
                 cabin=cabin_display,
                 dates_outbound=dates,
-                dates_inbound=[],  # API normalmente retorna só ida, volta é outra busca
-                notes=f"Encontrado via API Seats.aero ({len(dates)} opção/opções disponível/disponíveis)"
+                dates_inbound=[],
+                notes=" | ".join(notes_parts),
+                min_cost=min_cost,
+                max_cost=max_cost
             )
             
-            # Enriquecer com dados de aeroportos
+            # Enriquecer
             try:
                 batch.enrich_airport_data()
             except Exception:
-                # Se falhar, deixa os campos vazios (já estão)
                 pass
             
             batches.append(batch)

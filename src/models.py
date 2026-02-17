@@ -4,8 +4,8 @@ Models for Flight Alert CLI
 Este módulo define as estruturas de dados principais do projeto.
 """
 
-from dataclasses import dataclass
-from typing import List, Dict, Tuple
+from dataclasses import dataclass, field
+from typing import List, Dict, Tuple, Optional
 import arrow
 from collections import defaultdict
 
@@ -30,6 +30,8 @@ class FlightBatch:
                        Exemplo: [("2026-02-15", 9), ("2026-02-18", 4)]
         dates_inbound: Lista de tuplas (data_iso, assentos_disponíveis)
         notes: Observações e dicas extras sobre o voo
+        min_cost: Menor custo em milhas (numérico) encontrado neste batch
+        max_cost: Maior custo em milhas (numérico) encontrado neste batch
     """
     origin: str
     origin_code: str
@@ -44,6 +46,8 @@ class FlightBatch:
     dates_outbound: List[Tuple[str, int]]
     dates_inbound: List[Tuple[str, int]]
     notes: str
+    min_cost: Optional[int] = None
+    max_cost: Optional[int] = None
     
     @property
     def route(self) -> str:
