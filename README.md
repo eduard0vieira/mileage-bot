@@ -53,14 +53,16 @@ mileage-bot/
 ## 🔧 Como Funciona
 
 A classe `FlightBatch` representa um lote de voos disponíveis com:
-- Rota, companhia aérea, programa de fidelidade
+- Origem e destino separados (ex: "São Paulo" → "Miami")
+- Companhia aérea, programa de fidelidade
 - Custo em milhas e classe de voo
-- Listas de datas de ida e volta
+- Listas de datas com **assentos disponíveis** (ex: `("2026-02-15", 9)`)
 - Notas/dicas extras
 
 O método `format_dates_by_month()` agrupa as datas automaticamente:
-- **Entrada:** `['2026-02-15', '2026-02-18', '2026-03-01']`
-- **Saída:** `"Fev 2026: 15 (Sex), 18 (Seg) | Mar 2026: 01 (Dom)"`
+- **Entrada:** `[("2026-02-15", 9), ("2026-02-18", 4), ("2026-03-01", 2)]`
+- **Saída:** `"Fev 2026: 15 (9), 18 (4) | Mar 2026: 01 (2)"`
+- **Número entre parênteses:** quantidade de assentos disponíveis
 
 ## 🎯 Próximos Passos
 

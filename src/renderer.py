@@ -48,7 +48,13 @@ def render_alert(batch: FlightBatch, template_name: str) -> str:
     # Prepara os dados para injetar no template
     # Note que usamos os métodos "_dict" para templates que precisam iterar
     context = {
-        "route": batch.route,
+        "origin": batch.origin,
+        "origin_code": batch.origin_code,
+        "origin_flag": batch.origin_flag,
+        "destination": batch.destination,
+        "dest_code": batch.dest_code,
+        "dest_flag": batch.dest_flag,
+        "route": batch.route,  # Propriedade computed para compatibilidade
         "airline": batch.airline,
         "program": batch.program,
         "cost": batch.cost,
@@ -75,22 +81,24 @@ def main():
     
     # Cria um exemplo de voo
     flight = FlightBatch(
-        route="GRU - MIA",
+        origin="São Paulo",
+        origin_code="GRU",
+        origin_flag="🇧🇷",
+        destination="Miami",
+        dest_code="MIA",
+        dest_flag="🇺🇸",
         airline="Latam",
         program="Privilege Club",
         cost="77k Avios",
         cabin="Executiva",
         dates_outbound=[
-            "2026-02-15",
-            "2026-02-18",
-            "2026-02-22",
-            "2026-03-01",
-            "2026-03-05"
+            ("2026-02-15", 9),
+            ("2026-02-18", 4),
+            ("2026-03-01", 2)
         ],
         dates_inbound=[
-            "2026-02-20",
-            "2026-02-25",
-            "2026-03-10"
+            ("2026-02-20", 7),
+            ("2026-03-05", 3)
         ],
         notes="💡 Taxas em torno de R$ 600. Melhor disponibilidade às quartas."
     )
