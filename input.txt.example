@@ -1,0 +1,43 @@
+# ===============================
+
+# INPUT EXAMPLE
+
+# ===============================
+
+# Use este arquivo como modelo para criar seu input.txt
+
+# Você pode adicionar múltiplas rotas separando com "---"
+
+# Os números entre parênteses representam a quantidade de assentos disponíveis
+
+# ===============================
+
+ROUTE: ORIGIN DEST
+AIRLINE: Airline Name
+PROGRAM: Loyalty Program
+COST: XXk points/miles
+CABIN: Econômica | Premium Economy | Executiva | Primeira Classe
+NOTE: Informações adicionais (taxas, regras, promoções, etc.)
+
+DATES_OUT:
+Mês AAAA: DD (X), DD (X), DD (X)
+Mês AAAA: DD (X)
+
+DATES_IN:
+Mês AAAA: DD (X), DD (X)
+Mês AAAA: DD (X)
+
+---
+
+ROUTE: ORIGIN DEST
+AIRLINE: Airline Name
+PROGRAM: Loyalty Program
+COST: XXk points/miles
+CABIN: Cabin Type
+NOTE: Observações opcionais.
+
+DATES_OUT:
+Mês AAAA: DD (X), DD (X)
+
+DATES_IN:
+Mês AAAA: DD (X), DD (X)
