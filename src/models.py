@@ -56,6 +56,54 @@ class FlightBatch:
         """
         return f"{self.origin} - {self.destination}"
     
+    def enrich_airport_data(self) -> None:
+        """
+        Preenche automaticamente os campos de cidade e bandeira usando os códigos IATA.
+        
+        MÁGICA AQUI! 🪄
+        
+        Por que este método existe?
+        - Evita ter que preencher manualmente "São Paulo" e "🇧🇷" toda vez
+        - Você só precisa saber o código IATA (GRU, MIA, LIS)
+        - Os dados são buscados automaticamente no data/airports.json
+        
+        Como funciona:
+        1. Pega o origin_code atual (ex: "GRU")
+        2. Chama load_airport_data("GRU")
+        3. Recebe {"city": "São Paulo", "flag": "🇧🇷"}
+        4. Preenche automaticamente self.origin e self.origin_flag
+        5. Repete para destination
+        
+        IMPORTANTE: Este método MODIFICA o objeto in-place!
+        
+        Exemplo de uso:
+            >>> flight = FlightBatch(
+            ...     origin="",              # Deixa vazio
+            ...     origin_code="GRU",      # Só preenche o código
+            ...     origin_flag="",         # Deixa vazio
+            ...     destination="",
+            ...     dest_code="MIA",
+            ...     dest_flag="",
+            ...     # ... outros campos
+            ... )
+            >>> flight.enrich_airport_data()  # MÁGICA!
+            >>> print(flight.origin)        # "São Paulo"
+            >>> print(flight.origin_flag)   # "🇧🇷"
+            >>> print(flight.destination)   # "Miami"
+            >>> print(flight.dest_flag)     # "🇺🇸"
+        """
+        from src.utils import load_airport_data
+        
+        # Busca dados do aeroporto de origem
+        origin_data = load_airport_data(self.origin_code)
+        self.origin = origin_data["city"]
+        self.origin_flag = origin_data["flag"]
+        
+        # Busca dados do aeroporto de destino
+        dest_data = load_airport_data(self.dest_code)
+        self.destination = dest_data["city"]
+        self.dest_flag = dest_data["flag"]
+    
     def format_dates_by_month(self, dates: List[Tuple[str, int]], lang: str = 'pt_BR') -> str:
         """
         Agrupa e formata datas por mês/ano com dia da semana e assentos em português.

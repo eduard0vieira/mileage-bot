@@ -1,104 +1,118 @@
 """
 Mileage Bot - Main Entry Point
 
-Script principal para testar a geração de alertas de passagens aéreas.
+Script principal para gerar alertas de passagens aéreas a partir de arquivo.
 Execute: python main.py
 """
 
 from rich.console import Console
-from src.models import FlightBatch
+from src.importer import parse_file
 from src.renderer import render_alert
 
 
 def main():
     """
-    Função principal: cria dados fictícios e renderiza o alerta.
+    Função principal: lê input.txt e gera o alerta formatado.
     
-    O que este script faz:
-    1. Cria um FlightBatch com dados de teste realistas
-    2. Renderiza o alerta usando o template padrao_whatsapp.j2
-    3. Imprime o texto puro no console (fácil de copiar!)
+    Fluxo simplificado:
+    1. Lê input.txt com parse_file()
+    2. Preenche dados automaticamente com enrich_airport_data()
+    3. Renderiza usando template padrao_whatsapp.j2
+    4. Imprime texto puro (fácil de copiar!)
     """
     
     console = Console()
     
-    # Banner inicial simples
+    # ========================================
+    # BANNER
+    # ========================================
+    
     console.print("\n" + "=" * 70)
     console.print("🛫 MILEAGE BOT - Gerador de Alertas de Passagens")
     console.print("=" * 70 + "\n")
     
     # ========================================
-    # CRIAR DADOS DE TESTE
+    # PASSO 1: LER ARQUIVO INPUT.TXT
     # ========================================
     
-    console.print("📦 Criando FlightBatch com dados de teste...\n")
-    
-    # Dados de teste com formato NOVO:
-    # - origin e destination separados
-    # - origin_code, origin_flag, dest_code, dest_flag
-    # - dates como lista de tuplas (data, assentos)
-    flight = FlightBatch(
-        origin="São Paulo",
-        origin_code="GRU",
-        origin_flag="🇧🇷",
-        destination="Miami",
-        dest_code="MIA",
-        dest_flag="🇺🇸",
-        airline="Latam",
-        program="Privilege Club",
-        cost="77k Avios",
-        cabin="Executiva",
-        dates_outbound=[
-            ("2026-02-15", 9),   # 9 assentos disponíveis
-            ("2026-02-18", 4),   # 4 assentos disponíveis
-            ("2026-02-22", 2),   # 2 assentos disponíveis
-            ("2026-03-01", 7),   # Mês diferente
-            ("2026-03-05", 3),
-            ("2026-03-12", 5)
-        ],
-        dates_inbound=[
-            ("2026-02-20", 6),
-            ("2026-02-25", 9),
-            ("2026-03-10", 4),
-            ("2026-03-15", 2),
-            ("2026-03-20", 8)
-        ],
-        notes="Taxas em torno de R$ 600. Melhor disponibilidade às quartas."
-    )
-    
-    console.print(f"✅ Rota: {flight.route}")
-    console.print(f"✅ Programa: {flight.program}")
-    console.print(f"✅ Datas de ida: {len(flight.dates_outbound)} opções")
-    console.print(f"✅ Datas de volta: {len(flight.dates_inbound)} opções\n")
-    
-    # ========================================
-    # RENDERIZAR O ALERTA
-    # ========================================
-    
-    console.print("🎨 Renderizando alerta com template 'padrao_whatsapp.j2'...\n")
+    console.print("[bold yellow]📄 Lendo arquivo input.txt...[/bold yellow]\n")
     
     try:
-        alert_text = render_alert(flight, "padrao_whatsapp.j2")
-        console.print("✅ Alerta renderizado com sucesso!\n")
+        batch = parse_file("input.txt")
+        console.print("[bold green]✅ Arquivo parseado com sucesso![/bold green]")
+    except FileNotFoundError:
+        console.print("[bold red]❌ Erro: Arquivo 'input.txt' não encontrado![/bold red]")
+        console.print("\n💡 Dica: Crie um arquivo input.txt na raiz do projeto com o formato:")
+        console.print("""
+ROUTE: GRU MIA
+AIRLINE: Latam
+PROGRAM: Privilege Club
+COST: 77k Avios
+CABIN: Executiva
+NOTE: Taxas em torno de R$ 600.
+DATES_OUT: 2026-02-15=9, 2026-02-18=4
+DATES_IN: 2026-02-20=6, 2026-02-25=9
+        """)
+        return
+    except ValueError as e:
+        console.print(f"[bold red]❌ Erro ao parsear arquivo:[/bold red] {e}")
+        return
+    
+    console.print(f"  • Códigos IATA: {batch.origin_code} → {batch.dest_code}")
+    console.print(f"  • Datas de ida: {len(batch.dates_outbound)} opções")
+    console.print(f"  • Datas de volta: {len(batch.dates_inbound)} opções\n")
+    
+    # ========================================
+    # PASSO 2: ENRIQUECER DADOS (MÁGICA!)
+    # ========================================
+    
+    console.print("[bold cyan]🪄 Preenchendo cidades e bandeiras automaticamente...[/bold cyan]\n")
+    
+    try:
+        batch.enrich_airport_data()
+        console.print("[bold green]✅ Dados enriquecidos com sucesso![/bold green]")
+        console.print(f"  • Origem: {batch.origin} ({batch.origin_code}) {batch.origin_flag}")
+        console.print(f"  • Destino: {batch.destination} ({batch.dest_code}) {batch.dest_flag}")
+        console.print(f"  • Rota completa: {batch.route}\n")
     except Exception as e:
-        console.print(f"❌ Erro ao renderizar: {e}")
+        console.print(f"[bold red]❌ Erro ao enriquecer dados:[/bold red] {e}\n")
         return
     
     # ========================================
-    # IMPRIMIR TEXTO PURO (SEM BORDAS)
+    # PASSO 3: RENDERIZAR ALERTA
+    # ========================================
+    
+    console.print("[bold yellow]🎨 Renderizando alerta com template...[/bold yellow]\n")
+    
+    try:
+        alert_text = render_alert(batch, "padrao_whatsapp.j2")
+        console.print("[bold green]✅ Alerta renderizado com sucesso![/bold green]\n")
+    except Exception as e:
+        console.print(f"[bold red]❌ Erro ao renderizar:[/bold red] {e}\n")
+        return
+    
+    # ========================================
+    # PASSO 4: IMPRIMIR RESULTADO (SEM BORDAS)
     # ========================================
     
     console.print("=" * 70)
     console.print("📱 RESULTADO FINAL (copie o texto abaixo):")
     console.print("=" * 70 + "\n")
     
-    # Imprime o texto puro, sem Panel ou bordas decorativas
-    # Você pode selecionar e copiar diretamente!
+    # Texto puro, sem Panel ou bordas decorativas
     print(alert_text)
     
     console.print("\n" + "=" * 70)
-    console.print("✅ Pronto! Copie o texto acima e cole no WhatsApp")
-    console.print("=" * 70 + "\n")
+    console.print("✅ Pronto! Selecione o texto acima e copie (Cmd+C / Ctrl+C)")
+    console.print("=" * 70)
+    
+    # ========================================
+    # DICA FINAL
+    # ========================================
+    
+    console.print("\n[bold cyan]💡 DICA:[/bold cyan]")
+    console.print("Para criar outro alerta, edite o [bold]input.txt[/bold] e rode novamente!")
+    console.print("Você só precisa mudar os códigos IATA e as datas.\n")
 
 
 if __name__ == "__main__":

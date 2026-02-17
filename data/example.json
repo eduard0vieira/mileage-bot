@@ -4,14 +4,7 @@
   "program": "Privilege Club",
   "cost": "77k Avios",
   "cabin": "Executiva",
-  "dates_outbound": [
-    "2026-02-15",
-    "2026-02-18",
-    "2026-02-22"
-  ],
-  "dates_inbound": [
-    "2026-02-20",
-    "2026-02-25"
-  ],
-  "notes": "Taxas em torno de R$ 600. Melhor disponibilidade às quartas."
+  "dates_outbound": ["2026-02-15", "2026-02-18", "2026-02-22"],
+  "dates_inbound": ["2026-02-20", "2026-02-25"],
+  "notes": "Lembrando que os voos LATAM podem estar disponíveis em outros programas parcerios, como Iberia Club, British Airways Club, etc. Porém, os valores são mais altos do que no Privilege Club."
 }
