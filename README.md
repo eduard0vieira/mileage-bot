@@ -245,6 +245,7 @@ pytest tests/ --cov=app      # Com cobertura
 - **[TYPE_SAFETY_FIX.md](TYPE_SAFETY_FIX.md)**: Correção de TypeError (strings → int)
 - **[AIRLINE_EXTRACTION_FIX.md](AIRLINE_EXTRACTION_FIX.md)**: Extração robusta do campo airline
 - **[AIRLINE_INFERENCE_FIX.md](AIRLINE_INFERENCE_FIX.md)**: Inferência de airline via Source
+- **[MAX_COST_FILTER.md](MAX_COST_FILTER.md)**: Filtro de custo máximo
 - **[API_STRUCTURE_REFERENCE.md](API_STRUCTURE_REFERENCE.md)**: Referência rápida - estrutura da API Seats.aero
 - **[LOYALTY_PROGRAMS.md](LOYALTY_PROGRAMS.md)**: Guia completo de programas de fidelidade
 - **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)**: Referência rápida de comandos

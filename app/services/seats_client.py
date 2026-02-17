@@ -533,7 +533,8 @@ class SeatsAeroClient:
         direct_only: bool = False,
         airline_filter: Optional[str] = None,
         program_filter: Optional[str] = None,
-        requested_cabin: str = 'business'
+        requested_cabin: str = 'business',
+        max_cost_filter: Optional[int] = None
     ) -> List[FlightBatch]:
         """
         Processa e agrupa resultados da API Seats.aero.
@@ -546,6 +547,7 @@ class SeatsAeroClient:
         - direct_only: Descarta voos com conexão
         - airline_filter: Filtra por companhia específica
         - program_filter: Filtra por programa de milhas
+        - max_cost_filter: Descarta voos com custo acima do limite
         
         Args:
             results: Lista de voos da API
@@ -554,6 +556,7 @@ class SeatsAeroClient:
             airline_filter: Nome da companhia (ex: "United")
             program_filter: Nome do programa (ex: "Privilege Club")
             requested_cabin: Classe solicitada ("economy", "business", "first")
+            max_cost_filter: Custo máximo em milhas (ex: 100000)
         
         Returns:
             Lista de FlightBatch agrupados e enriquecidos
@@ -754,6 +757,10 @@ class SeatsAeroClient:
                 # Se AINDA é 0, pular (sem disponibilidade)
                 if miles_cost == 0:
                     continue
+                
+                # Filtro de custo máximo
+                if max_cost_filter and miles_cost > max_cost_filter:
+                    continue  # Descarta voos acima do limite
                 
                 dates.append((date_str, seats))
                 costs.append(miles_cost)

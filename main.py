@@ -95,7 +95,8 @@ def mode_api(console: Console, args):
             direct_only=args.direct,
             airline_filter=args.airline,
             program_filter=args.program,
-            requested_cabin=args.cabin  # Importante: para extrair custo correto
+            requested_cabin=args.cabin,  # Importante: para extrair custo correto
+            max_cost_filter=args.max_cost  # Novo: filtro de custo máximo
         )
         
         if not batches:
@@ -200,6 +201,13 @@ Exemplos:
         choices=['economy', 'business', 'first'],
         default='business',
         help='Classe de cabine (padrão: business)'
+    )
+    
+    parser.add_argument(
+        '--max-cost',
+        type=int,
+        default=None,
+        help='Custo máximo em milhas (filtra voos acima desse valor)'
     )
     
     parser.add_argument(
