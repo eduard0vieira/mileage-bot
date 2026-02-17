@@ -1,8 +1,8 @@
 """
-Renderizador de Templates
+Renderizador de Templates de Alertas
 
-Este módulo é responsável por pegar os dados do FlightBatch
-e gerar textos formatados usando templates Jinja2.
+Este módulo é responsável por transformar objetos FlightBatch
+em textos formatados usando templates Jinja2.
 """
 
 from pathlib import Path
@@ -10,63 +10,64 @@ from jinja2 import Environment, FileSystemLoader
 from src.models import FlightBatch
 
 
-class TemplateRenderer:
+def render_alert(batch: FlightBatch, template_name: str) -> str:
     """
-    Classe responsável por renderizar templates de alertas.
+    Renderiza um alerta de voo usando um template Jinja2.
     
-    Por que criar uma classe separada?
-    - Separa a lógica de formatação de datas (models.py) da lógica de templates
-    - Facilita trocar/adicionar novos templates no futuro
-    - Segue o princípio de Responsabilidade Única (Single Responsibility)
+    Como funciona:
+    1. Carrega o template especificado da pasta templates/
+    2. Extrai os dados do objeto FlightBatch
+    3. Formata as datas usando os métodos helpers
+    4. Injeta tudo no template Jinja2
+    5. Retorna o texto final pronto para envio
+    
+    Args:
+        batch: Objeto FlightBatch com os dados do voo
+        template_name: Nome do arquivo .j2 na pasta templates/
+                      (ex: "padrao_whatsapp.j2", "telegram.j2")
+    
+    Returns:
+        String com o alerta formatado, pronto para copiar/enviar
+    
+    Exemplo de uso:
+        >>> flight = FlightBatch(...)
+        >>> alert_text = render_alert(flight, "padrao_whatsapp.j2")
+        >>> print(alert_text)  # ou enviar via API
     """
+    # Configura o Jinja2 para buscar templates na pasta "templates/"
+    # trim_blocks e lstrip_blocks removem espaços em branco desnecessários
+    env = Environment(
+        loader=FileSystemLoader("templates"),
+        trim_blocks=True,
+        lstrip_blocks=True
+    )
     
-    def __init__(self, templates_dir: str = "templates"):
-        """
-        Inicializa o renderizador de templates.
-        
-        Args:
-            templates_dir: Diretório onde estão os arquivos .j2
-        """
-        # Configura o Jinja2 para buscar templates na pasta especificada
-        self.env = Environment(
-            loader=FileSystemLoader(templates_dir),
-            trim_blocks=True,        # Remove espaços em branco extras
-            lstrip_blocks=True       # Remove indentação desnecessária
-        )
+    # Carrega o template especificado
+    template = env.get_template(template_name)
     
-    def render_alert(self, flight: FlightBatch, template_name: str = "alert_telegram.j2") -> str:
-        """
-        Renderiza um alerta de voo usando um template Jinja2.
-        
-        Args:
-            flight: Objeto FlightBatch com os dados do voo
-            template_name: Nome do arquivo .j2 a ser usado
-        
-        Returns:
-            String com o alerta formatado pronto para envio
-        """
-        # Carrega o template
-        template = self.env.get_template(template_name)
-        
-        # Prepara os dados para o template
-        # Note que usamos os métodos helper da classe FlightBatch
-        context = {
-            "route": flight.route,
-            "airline": flight.airline,
-            "program": flight.program,
-            "cost": flight.cost,
-            "cabin": flight.cabin,
-            "formatted_outbound": flight.get_formatted_outbound_dates(),
-            "formatted_inbound": flight.get_formatted_inbound_dates(),
-            "notes": flight.notes
-        }
-        
-        # Renderiza e retorna o texto final
-        return template.render(context)
+    # Prepara os dados para injetar no template
+    # Note que usamos os métodos "_dict" para templates que precisam iterar
+    context = {
+        "route": batch.route,
+        "airline": batch.airline,
+        "program": batch.program,
+        "cost": batch.cost,
+        "cabin": batch.cabin,
+        # Para templates que usam {% for month, days in ... %}
+        "formatted_outbound": batch.get_outbound_dates_dict(),
+        "formatted_inbound": batch.get_inbound_dates_dict(),
+        "notes": batch.notes
+    }
+    
+    # Renderiza e retorna o texto final
+    return template.render(context)
 
 
 def main():
-    """Exemplo de uso do TemplateRenderer."""
+    """
+    Exemplo de uso do render_alert com dados reais.
+    Execute: python -m src.renderer
+    """
     from rich.console import Console
     from rich.panel import Panel
     
@@ -79,18 +80,34 @@ def main():
         program="Privilege Club",
         cost="77k Avios",
         cabin="Executiva",
-        dates_outbound=["2026-02-15", "2026-02-18", "2026-03-01"],
-        dates_inbound=["2026-02-20", "2026-03-05"],
-        notes="Taxas em torno de R$ 600. Melhor disponibilidade às quartas."
+        dates_outbound=[
+            "2026-02-15",
+            "2026-02-18",
+            "2026-02-22",
+            "2026-03-01",
+            "2026-03-05"
+        ],
+        dates_inbound=[
+            "2026-02-20",
+            "2026-02-25",
+            "2026-03-10"
+        ],
+        notes="💡 Taxas em torno de R$ 600. Melhor disponibilidade às quartas."
     )
     
-    # Renderiza o alerta
-    renderer = TemplateRenderer()
-    alert_text = renderer.render_alert(flight)
+    # Renderiza o alerta usando o template do WhatsApp
+    alert_text = render_alert(flight, "padrao_whatsapp.j2")
     
-    # Mostra o resultado
-    console.print("\n[bold cyan]📱 Alerta Formatado (Telegram):[/bold cyan]\n")
-    console.print(Panel(alert_text, border_style="cyan"))
+    # Mostra o resultado formatado no terminal
+    console.print("\n[bold green]✅ Alerta Renderizado com Sucesso![/bold green]\n")
+    console.print(Panel(
+        alert_text,
+        title="📱 Padrão WhatsApp",
+        border_style="green",
+        padding=(1, 2)
+    ))
+    
+    console.print("\n[dim]💾 Você pode copiar este texto e colar direto no WhatsApp/Telegram![/dim]\n")
 
 
 if __name__ == "__main__":

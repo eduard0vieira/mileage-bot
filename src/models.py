@@ -5,7 +5,7 @@ Este módulo define as estruturas de dados principais do projeto.
 """
 
 from dataclasses import dataclass
-from typing import List
+from typing import List, Dict
 import arrow
 from collections import defaultdict
 
@@ -85,3 +85,43 @@ class FlightBatch:
     def get_formatted_inbound_dates(self) -> str:
         """Retorna datas de volta formatadas e agrupadas por mês."""
         return self.format_dates_by_month(self.dates_inbound)
+    
+    def get_dates_grouped_dict(self, dates: List[str], lang: str = 'pt_BR') -> Dict[str, str]:
+        """
+        Agrupa datas por mês/ano e retorna um DICIONÁRIO.
+        
+        Por que criar este método separado?
+        - O método `format_dates_by_month()` retorna uma STRING: "Fev 2026: 15 (Sex), 18 (Seg)"
+        - Mas para usar no Jinja2 com `{% for month, days in ... %}`, precisamos de um DICT
+        - Retorna: {"Fev 2026": "15 (Sex), 18 (Seg)", "Mar 2026": "01 (Dom)"}
+        
+        Args:
+            dates: Lista de datas no formato ISO 'YYYY-MM-DD'
+            lang: Locale para formatação (padrão: pt_BR)
+        
+        Returns:
+            Dicionário onde:
+            - chave = mês/ano (ex: "Fev 2026")
+            - valor = dias com dia da semana (ex: "15 (Sex), 18 (Seg)")
+        """
+        if not dates:
+            return {}
+        
+        grouped = defaultdict(list)
+        
+        for date_str in dates:
+            date_obj = arrow.get(date_str)
+            month_year_key = date_obj.format('MMM YYYY', locale=lang)
+            day_weekday = date_obj.format('DD (ddd)', locale=lang)
+            grouped[month_year_key].append(day_weekday)
+        
+        # Converte defaultdict para dict normal e junta os dias com vírgula
+        return {month: ", ".join(days) for month, days in grouped.items()}
+    
+    def get_outbound_dates_dict(self) -> Dict[str, str]:
+        """Retorna datas de ida como dicionário (para usar em templates)."""
+        return self.get_dates_grouped_dict(self.dates_outbound)
+    
+    def get_inbound_dates_dict(self) -> Dict[str, str]:
+        """Retorna datas de volta como dicionário (para usar em templates)."""
+        return self.get_dates_grouped_dict(self.dates_inbound)

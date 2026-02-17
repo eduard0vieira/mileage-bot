@@ -6,19 +6,26 @@ CLI para formatação de alertas de passagens aéreas com milhas/pontos.
 
 ```
 mileage-bot/
-├── src/              # Código fonte principal
-│   └── models.py     # Definição das estruturas de dados
-├── templates/        # Templates Jinja2 (.j2) para alertas
-├── data/             # Arquivos JSON com dados de voos
+├── main.py           # 🎯 Script principal - COMECE AQUI!
 ├── requirements.txt  # Dependências do projeto
-└── README.md
+├── README.md
+├── src/              # Código fonte principal
+│   ├── __init__.py
+│   ├── models.py     # Classe FlightBatch e lógica de datas
+│   ├── renderer.py   # Função render_alert com Jinja2
+│   └── example.py    # Exemplos de uso
+├── templates/        # Templates Jinja2 (.j2) para alertas
+│   ├── padrao_whatsapp.j2   # Template principal
+│   └── alert_telegram.j2    # Template alternativo
+└── data/             # Arquivos JSON com dados de voos
+    └── example.json  # Exemplo de estrutura
 ```
 
-## 🚀 Setup
+## 🚀 Setup e Execução
 
 1. **Criar ambiente virtual (boa prática!):**
    ```bash
-   python -m venv venv
+   python3 -m venv venv
    source venv/bin/activate  # No Windows: venv\Scripts\activate
    ```
 
@@ -26,6 +33,16 @@ mileage-bot/
    ```bash
    pip install -r requirements.txt
    ```
+
+3. **Rodar o script principal:**
+   ```bash
+   python main.py
+   ```
+   
+   Isso vai:
+   - Criar um FlightBatch com dados de teste
+   - Renderizar o alerta usando o template WhatsApp
+   - Exibir o resultado formatado no terminal
 
 ## 📦 Dependências
 

@@ -1,0 +1,17 @@
+✈️ {{ route }}
+🚨 Classe {{ cabin }} - {{ airline }}
+
+🌎 Programa: {{ program }}
+💰 {{ cost }} + taxas
+
+Ida:
+{% for month, days in formatted_outbound.items() %}
+📆 {{ month }}: {{ days }}
+{% endfor %}
+
+Volta:
+{% for month, days in formatted_inbound.items() %}
+📆 {{ month }}: {{ days }}
+{% endfor %}
+
+{{ notes }}
