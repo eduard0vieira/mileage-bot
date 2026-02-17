@@ -1,0 +1,19 @@
+🛫 *{{ route }}* - {{ cabin }}
+
+✈️ *Companhia:* {{ airline }}
+🎫 *Programa:* {{ program }}
+💳 *Custo:* {{ cost }}
+
+📅 *DATAS DE IDA:*
+{{ formatted_outbound }}
+
+📅 *DATAS DE VOLTA:*
+{{ formatted_inbound }}
+
+{% if notes %}
+💡 *Dica:*
+{{ notes }}
+{% endif %}
+
+---
+_Alerta gerado automaticamente pelo Mileage Bot_
