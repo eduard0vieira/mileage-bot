@@ -25,3 +25,5 @@ Thumbs.db
 # Project specific
 data/*.json
 !data/example.json
+
+input.txt
