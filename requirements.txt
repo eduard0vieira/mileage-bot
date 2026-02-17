@@ -1,3 +1,5 @@
 jinja2
 arrow
 rich
+python-dotenv
+requests
